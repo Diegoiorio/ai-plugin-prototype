@@ -1,3 +1,6 @@
+from query_builder import build_safe_query
+from ai_service import interpret_with_gemini
+from ai_schema import SAFE_DB_SCHEMA
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -19,12 +22,16 @@ app = FastAPI(title="AI Plugin Prototype API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 class PromptRequest(Base):
     __tablename__ = "prompt_requests"
@@ -115,6 +122,289 @@ def validate_interpretation(interpretation: dict):
         raise HTTPException(status_code=400, detail="L'asse Y deve essere numerico.")
 
 
+def normalize_ai_interpretation(ai_result: dict):
+    aliases = []
+
+    for field in ai_result.get("fields", []):
+        if isinstance(field, dict) and field.get("alias"):
+            aliases.append(field["alias"])
+
+    for aggregation in ai_result.get("aggregations", []):
+        if isinstance(aggregation, dict) and aggregation.get("alias"):
+            aliases.append(aggregation["alias"])
+
+    normalized_fields = []
+
+    for alias in aliases:
+        if alias in ALLOWED_FIELDS and alias not in normalized_fields:
+            normalized_fields.append(alias)
+
+    if "month" not in normalized_fields:
+        normalized_fields.insert(0, "month")
+
+    if "sellers_count" not in normalized_fields:
+        normalized_fields.append("sellers_count")
+
+    if "sales_total" not in normalized_fields:
+        normalized_fields.append("sales_total")
+
+    if "opportunities_count" not in normalized_fields:
+        normalized_fields.append("opportunities_count")
+
+    chart = ai_result.get("chart", {})
+
+    x_field = chart.get("x_field", "sellers_count")
+    y_field = chart.get("y_field", "sales_total")
+
+    if x_field not in ALLOWED_FIELDS:
+        x_field = "sellers_count"
+
+    if y_field not in ALLOWED_FIELDS:
+        y_field = "sales_total"
+
+    return {
+        "title": ai_result.get("title", "Analisi dati CRM"),
+        "description": ai_result.get(
+            "description",
+            "Analisi generata a partire dalla richiesta utente."
+        ),
+        "fields": normalized_fields,
+        "chart": {
+            "x_field": x_field,
+            "y_field": y_field,
+            "reason": chart.get(
+                "reason",
+                "Gli assi sono stati scelti automaticamente in base ai dati disponibili."
+            ),
+        },
+    }
+def normalize_ai_interpretation(ai_result: dict):
+    aliases = []
+
+    for field in ai_result.get("fields", []):
+        if isinstance(field, dict) and field.get("alias"):
+            aliases.append(field["alias"])
+
+    for aggregation in ai_result.get("aggregations", []):
+        if isinstance(aggregation, dict) and aggregation.get("alias"):
+            aliases.append(aggregation["alias"])
+
+    normalized_fields = []
+
+    for alias in aliases:
+        if alias in ALLOWED_FIELDS and alias not in normalized_fields:
+            normalized_fields.append(alias)
+
+    if "month" not in normalized_fields:
+        normalized_fields.insert(0, "month")
+
+    if "sellers_count" not in normalized_fields:
+        normalized_fields.append("sellers_count")
+
+    if "sales_total" not in normalized_fields:
+        normalized_fields.append("sales_total")
+
+    if "opportunities_count" not in normalized_fields:
+        normalized_fields.append("opportunities_count")
+
+    chart = ai_result.get("chart", {})
+
+    x_field = chart.get("x_field", "sellers_count")
+    y_field = chart.get("y_field", "sales_total")
+
+    if x_field not in ALLOWED_FIELDS:
+        x_field = "sellers_count"
+
+    if y_field not in ALLOWED_FIELDS:
+        y_field = "sales_total"
+
+    return {
+        "title": ai_result.get("title", "Analisi dati CRM"),
+        "description": ai_result.get(
+            "description",
+            "Analisi generata a partire dalla richiesta utente."
+        ),
+        "fields": normalized_fields,
+        "chart": {
+            "x_field": x_field,
+            "y_field": y_field,
+            "reason": chart.get(
+                "reason",
+                "Gli assi sono stati scelti automaticamente in base ai dati disponibili."
+            ),
+        },
+    }
+def normalize_ai_interpretation(ai_result: dict):
+    aliases = []
+
+    for field in ai_result.get("fields", []):
+        if isinstance(field, dict) and field.get("alias"):
+            aliases.append(field["alias"])
+
+    for aggregation in ai_result.get("aggregations", []):
+        if isinstance(aggregation, dict) and aggregation.get("alias"):
+            aliases.append(aggregation["alias"])
+
+    normalized_fields = []
+
+    for alias in aliases:
+        if alias in ALLOWED_FIELDS and alias not in normalized_fields:
+            normalized_fields.append(alias)
+
+    if "month" not in normalized_fields:
+        normalized_fields.insert(0, "month")
+
+    if "sellers_count" not in normalized_fields:
+        normalized_fields.append("sellers_count")
+
+    if "sales_total" not in normalized_fields:
+        normalized_fields.append("sales_total")
+
+    if "opportunities_count" not in normalized_fields:
+        normalized_fields.append("opportunities_count")
+
+    chart = ai_result.get("chart", {})
+
+    x_field = chart.get("x_field", "sellers_count")
+    y_field = chart.get("y_field", "sales_total")
+
+    if x_field not in ALLOWED_FIELDS:
+        x_field = "sellers_count"
+
+    if y_field not in ALLOWED_FIELDS:
+        y_field = "sales_total"
+
+    return {
+        "title": ai_result.get("title", "Analisi dati CRM"),
+        "description": ai_result.get(
+            "description",
+            "Analisi generata a partire dalla richiesta utente."
+        ),
+        "fields": normalized_fields,
+        "chart": {
+            "x_field": x_field,
+            "y_field": y_field,
+            "reason": chart.get(
+                "reason",
+                "Gli assi sono stati scelti automaticamente in base ai dati disponibili."
+            ),
+        },
+    }
+
+def normalize_ai_interpretation(ai_result: dict):
+    aliases = []
+
+    for field in ai_result.get("fields", []):
+        if isinstance(field, dict) and field.get("alias"):
+            aliases.append(field["alias"])
+
+    for aggregation in ai_result.get("aggregations", []):
+        if isinstance(aggregation, dict) and aggregation.get("alias"):
+            aliases.append(aggregation["alias"])
+
+    normalized_fields = []
+
+    for alias in aliases:
+        if alias in ALLOWED_FIELDS and alias not in normalized_fields:
+            normalized_fields.append(alias)
+
+    if "month" not in normalized_fields:
+        normalized_fields.insert(0, "month")
+
+    if "sellers_count" not in normalized_fields:
+        normalized_fields.append("sellers_count")
+
+    if "sales_total" not in normalized_fields:
+        normalized_fields.append("sales_total")
+
+    if "opportunities_count" not in normalized_fields:
+        normalized_fields.append("opportunities_count")
+
+    chart = ai_result.get("chart", {})
+
+    x_field = chart.get("x_field", "sellers_count")
+    y_field = chart.get("y_field", "sales_total")
+
+    if x_field not in ALLOWED_FIELDS:
+        x_field = "sellers_count"
+
+    if y_field not in ALLOWED_FIELDS:
+        y_field = "sales_total"
+
+    return {
+        "title": ai_result.get("title", "Analisi dati CRM"),
+        "description": ai_result.get(
+            "description",
+            "Analisi generata a partire dalla richiesta utente."
+        ),
+        "fields": normalized_fields,
+        "chart": {
+            "x_field": x_field,
+            "y_field": y_field,
+            "reason": chart.get(
+                "reason",
+                "Gli assi sono stati scelti automaticamente in base ai dati disponibili."
+            ),
+        },
+    }
+def normalize_ai_interpretation(ai_result: dict):
+    aliases = []
+
+    for field in ai_result.get("fields", []):
+        if isinstance(field, dict) and field.get("alias"):
+            aliases.append(field["alias"])
+
+    for aggregation in ai_result.get("aggregations", []):
+        if isinstance(aggregation, dict) and aggregation.get("alias"):
+            aliases.append(aggregation["alias"])
+
+    normalized_fields = []
+
+    for alias in aliases:
+        if alias in ALLOWED_FIELDS and alias not in normalized_fields:
+            normalized_fields.append(alias)
+
+    if "month" not in normalized_fields:
+        normalized_fields.insert(0, "month")
+
+    if "sellers_count" not in normalized_fields:
+        normalized_fields.append("sellers_count")
+
+    if "sales_total" not in normalized_fields:
+        normalized_fields.append("sales_total")
+
+    if "opportunities_count" not in normalized_fields:
+        normalized_fields.append("opportunities_count")
+
+    chart = ai_result.get("chart", {})
+
+    x_field = chart.get("x_field", "sellers_count")
+    y_field = chart.get("y_field", "sales_total")
+
+    if x_field not in ALLOWED_FIELDS:
+        x_field = "sellers_count"
+
+    if y_field not in ALLOWED_FIELDS:
+        y_field = "sales_total"
+
+    return {
+        "title": ai_result.get("title", "Analisi dati CRM"),
+        "description": ai_result.get(
+            "description",
+            "Analisi generata a partire dalla richiesta utente."
+        ),
+        "fields": normalized_fields,
+        "chart": {
+            "x_field": x_field,
+            "y_field": y_field,
+            "reason": chart.get(
+                "reason",
+                "Gli assi sono stati scelti automaticamente in base ai dati disponibili."
+            ),
+        },
+    }
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -147,10 +437,129 @@ def list_prompts(db: Session = Depends(get_db)):
         for item in items
     ]
 
+def normalize_ai_interpretation(ai_result: dict):
+    aliases = []
+
+    for field in ai_result.get("fields", []):
+        if isinstance(field, dict) and field.get("alias"):
+            aliases.append(field["alias"])
+
+    for aggregation in ai_result.get("aggregations", []):
+        if isinstance(aggregation, dict) and aggregation.get("alias"):
+            aliases.append(aggregation["alias"])
+
+    normalized_fields = []
+
+    for alias in aliases:
+        if alias in ALLOWED_FIELDS and alias not in normalized_fields:
+            normalized_fields.append(alias)
+
+    if "month" not in normalized_fields:
+        normalized_fields.insert(0, "month")
+
+    if "sellers_count" not in normalized_fields:
+        normalized_fields.append("sellers_count")
+
+    if "sales_total" not in normalized_fields:
+        normalized_fields.append("sales_total")
+
+    if "opportunities_count" not in normalized_fields:
+        normalized_fields.append("opportunities_count")
+
+    chart = ai_result.get("chart", {})
+
+    x_field = chart.get("x_field", "sellers_count")
+    y_field = chart.get("y_field", "sales_total")
+
+    if x_field not in ALLOWED_FIELDS:
+        x_field = "sellers_count"
+
+    if y_field not in ALLOWED_FIELDS:
+        y_field = "sales_total"
+
+    return {
+        "title": ai_result.get("title", "Analisi dati CRM"),
+        "description": ai_result.get(
+            "description",
+            "Analisi generata a partire dalla richiesta utente."
+        ),
+        "fields": normalized_fields,
+        "chart": {
+            "x_field": x_field,
+            "y_field": y_field,
+            "reason": chart.get(
+                "reason",
+                "Gli assi sono stati scelti automaticamente in base ai dati disponibili."
+            ),
+        },
+    }
 
 @app.post("/ai/query")
 def ai_query(payload: AiQueryRequest, db: Session = Depends(get_db)):
-    interpretation = interpret_prompt_safely(payload.prompt)
+    try:
+        plan = interpret_with_gemini(payload.prompt)
+        print("AI PLAN:", plan)
+    except Exception as e:
+        print("AI ERROR:", str(e))
+        raise HTTPException(
+            status_code=502,
+            detail="Errore durante l'interpretazione AI della richiesta."
+        )
+
+    query, columns, params, meta = build_safe_query(plan)
+
+    result = db.execute(query, params).mappings().all()
+    rows = [dict(row) for row in result]
+
+    compatible_x_fields = [
+        column for column in columns
+        if column["type"] in ["temporal", "number", "category", "text"]
+    ]
+
+    compatible_y_fields = [
+        column for column in columns
+        if column["type"] == "number"
+    ]
+
+    chart = meta["chart"] or {}
+
+    x_field = chart.get("x_field")
+    y_field = chart.get("y_field")
+
+    column_keys = [column["key"] for column in columns]
+    numeric_keys = [column["key"] for column in compatible_y_fields]
+
+    if x_field not in column_keys:
+        x_field = column_keys[0] if column_keys else None
+
+    if y_field not in numeric_keys:
+        y_field = numeric_keys[0] if numeric_keys else None
+
+    return {
+        "title": meta["title"],
+        "description": meta["description"],
+        "columns": columns,
+        "rows": rows,
+        "chart": {
+            "x_field": x_field,
+            "y_field": y_field,
+            "reason": chart.get(
+                "reason",
+                "Gli assi sono stati scelti automaticamente in base ai dati disponibili."
+            ),
+            "compatible_x_fields": compatible_x_fields,
+            "compatible_y_fields": compatible_y_fields,
+        },
+    }
+
+    try:
+        ai_result = interpret_with_gemini(payload.prompt)
+        print("AI RESULT:", ai_result)
+        interpretation = normalize_ai_interpretation(ai_result)
+    except Exception as e:
+        print("AI ERROR:", str(e))
+        interpretation = interpret_prompt_safely(payload.prompt)
+
     validate_interpretation(interpretation)
 
     sql = text("""
