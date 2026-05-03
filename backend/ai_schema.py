@@ -1,3 +1,22 @@
+"""Schema dati sicuro usato dal backend AI.
+
+Responsabilita:
+- Definire il sottoinsieme di tabelle, campi e relazioni che il layer AI puo usare.
+- Fornire metadati semantici (`type`, `description`) per validazioni e mapping.
+
+Ruolo nel flusso applicativo:
+- Viene importato da `ai_service.py` per istruire Gemini su quali campi sono ammessi.
+- Viene importato da `query_builder.py` per validare piani query e costruire SQL sicuro.
+
+Dipendenze principali:
+- Nessuna dipendenza runtime esterna: contiene solo costanti Python.
+
+Cosa NON fa questo modulo:
+- Non interroga il database.
+- Non costruisce SQL.
+- Non applica validazioni operative: espone solamente la whitelist strutturale.
+"""
+
 SAFE_DB_SCHEMA = {
     "tables": {
         "users": {

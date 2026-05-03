@@ -1,3 +1,24 @@
+"""Servizio di interpretazione prompt via Gemini.
+
+Responsabilita:
+- Preparare il prompt tecnico inviato al modello Gemini.
+- Richiedere un piano JSON conforme allo schema safe.
+- Parsare in modo stretto la risposta testuale del modello in oggetto Python.
+
+Ruolo nel flusso applicativo:
+- `main.py` chiama `interpret_with_gemini` per ottenere il piano query.
+- Il piano risultante viene poi validato/convertito in SQL da `query_builder.py`.
+
+Dipendenze principali:
+- `google.genai` per la chiamata al modello.
+- `SAFE_DB_SCHEMA` per incorporare nel prompt i vincoli strutturali.
+
+Cosa NON fa questo modulo:
+- Non costruisce SQL.
+- Non esegue query sul database.
+- Non espone endpoint HTTP.
+"""
+
 import json
 import os
 from typing import Any
@@ -8,6 +29,14 @@ from ai_schema import SAFE_DB_SCHEMA
 
 
 def get_ai_prompt(user_prompt: str) -> str:
+  """Costruisce il prompt completo inviato a Gemini.
+
+  Args:
+    user_prompt: Richiesta naturale inserita dall'utente finale.
+
+  Returns:
+    Stringa multi-linea con schema consentito, formato JSON atteso e regole.
+  """
     return f"""
 Sei un interprete sicuro di richieste dati per un CRM commerciale.
 
@@ -95,6 +124,17 @@ Regole obbligatorie:
 
 
 def extract_json(text: str) -> dict[str, Any]:
+  """Estrae JSON valido da una risposta testuale del modello.
+
+  Args:
+    text: Testo restituito dal modello, eventualmente racchiuso in code fence.
+
+  Returns:
+    Dizionario Python ottenuto dal parsing JSON.
+
+  Raises:
+    json.JSONDecodeError: Se il contenuto non e JSON valido.
+  """
     cleaned = text.strip()
 
     if cleaned.startswith("```json"):
@@ -110,6 +150,18 @@ def extract_json(text: str) -> dict[str, Any]:
 
 
 def interpret_with_gemini(user_prompt: str) -> dict[str, Any]:
+  """Invia il prompt a Gemini e restituisce il piano query come dizionario.
+
+  Args:
+    user_prompt: Prompt utente da interpretare.
+
+  Returns:
+    Piano query in formato dizionario, pronto per il layer di query building.
+
+  Raises:
+    RuntimeError: Se la API key non e configurata.
+    Exception: Propaga eventuali errori della libreria Gemini o di parsing.
+  """
     api_key = os.getenv("GEMINI_API_KEY")
 
     if not api_key:

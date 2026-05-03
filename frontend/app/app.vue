@@ -1,3 +1,21 @@
+<!--
+  Pagina principale del prototipo frontend.
+
+  Scopo:
+  - Raccogliere un prompt utente per analisi CRM.
+  - Chiamare il backend `/ai/query`.
+  - Visualizzare risultato in formato tabella + grafico a barre configurabile.
+
+  Dati principali:
+  - `prompt`, `loading`, `error`, `result`, `selectedX`, `selectedY`.
+
+  Interazioni gestite:
+  - Submit form con richiesta HTTP POST.
+  - Selezione dinamica assi X/Y per il grafico.
+
+  Ruolo nel flusso frontend:
+  - E il punto di ingresso UI che orchestra input utente, stato chiamata API e rendering output.
+-->
 <script setup lang="ts">
 import { computed, ref } from "vue";
 
@@ -35,6 +53,7 @@ const selectedX = ref("");
 const selectedY = ref("");
 
 async function submitPrompt() {
+  // Avvia una nuova richiesta: resetta stato errore/risultato precedente.
   error.value = "";
   result.value = null;
 
@@ -75,6 +94,7 @@ async function submitPrompt() {
   }
 }
 
+// Deriva i punti del grafico dalla risposta tabellare usando gli assi selezionati.
 const chartPoints = computed(() => {
   if (!result.value || !selectedX.value || !selectedY.value) {
     return [];
@@ -92,23 +112,27 @@ const chartPoints = computed(() => {
     );
 });
 
+// Calcola il massimo asse Y per normalizzare l'altezza delle barre.
 const maxY = computed(() => {
   if (chartPoints.value.length === 0) return 0;
   return Math.max(...chartPoints.value.map((point) => point.y));
 });
 
 function getBarHeight(value: number) {
+  // Mantiene una altezza minima visiva anche per valori piccoli o nulli.
   if (maxY.value === 0) return 0;
   return Math.max(8, (value / maxY.value) * 220);
 }
 
 function getColumnLabel(key: string) {
+  // Risolve la label umana di una colonna usando i metadati backend.
   return (
     result.value?.columns.find((column) => column.key === key)?.label ?? key
   );
 }
 
 function formatValue(value: string | number | null) {
+  // Uniforma il rendering dei valori in tabella e grafico.
   if (value === null || value === undefined) return "-";
 
   if (typeof value === "number") {

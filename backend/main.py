@@ -1,3 +1,25 @@
+"""Entrypoint FastAPI del backend AI Plugin Prototype.
+
+Responsabilita:
+- Esporre endpoint HTTP per health check, storico prompt e query AI.
+- Gestire la connessione al database PostgreSQL tramite SQLAlchemy.
+- Orchestrare il flusso: prompt utente -> interpretazione Gemini -> query sicura -> risposta tabellare/grafica.
+
+Ruolo nel flusso applicativo:
+- E il punto di integrazione tra frontend Nuxt, servizio AI (`ai_service`) e query builder (`query_builder`).
+- Applica fallback e normalizzazioni per mantenere risposte compatibili con UI tabella/grafico.
+
+Dipendenze principali:
+- FastAPI per API REST e dependency injection.
+- SQLAlchemy per sessioni DB e query raw parametrizzate.
+- `ai_service.interpret_with_gemini` per interpretazione prompt naturale.
+- `query_builder.build_safe_query` per trasformazione piano AI in SQL sicuro.
+
+Cosa NON fa questo modulo:
+- Non definisce lo schema safe (delegato a `ai_schema.py`).
+- Non contiene client frontend o rendering UI.
+"""
+
 from query_builder import build_safe_query
 from ai_service import interpret_with_gemini
 from ai_schema import SAFE_DB_SCHEMA
@@ -11,6 +33,8 @@ from dotenv import load_dotenv
 import os
 
 load_dotenv()
+
+AI_PLAN_CACHE = {}
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
@@ -34,6 +58,7 @@ app.add_middleware(
 )
 
 class PromptRequest(Base):
+    """Modello ORM per lo storico dei prompt utente salvati a database."""
     __tablename__ = "prompt_requests"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -42,10 +67,12 @@ class PromptRequest(Base):
 
 
 class PromptCreate(BaseModel):
+    """Payload di input per la creazione di un nuovo prompt nello storico."""
     prompt: str
 
 
 class AiQueryRequest(BaseModel):
+    """Payload di input per gli endpoint che richiedono interpretazione AI."""
     prompt: str
 
 
@@ -53,6 +80,7 @@ Base.metadata.create_all(bind=engine)
 
 
 def get_db():
+    """Fornisce una sessione DB per request e ne garantisce la chiusura."""
     db = SessionLocal()
     try:
         yield db
@@ -81,6 +109,17 @@ ALLOWED_FIELDS = {
 
 
 def interpret_prompt_safely(prompt: str):
+    """Fallback rule-based per interpretazioni base quando AI non disponibile.
+
+    Args:
+        prompt: Richiesta utente in linguaggio naturale.
+
+    Returns:
+        Interpretazione normalizzata con titolo, descrizione, campi e configurazione chart.
+
+    Raises:
+        HTTPException: Se il prompt non corrisponde ai pattern supportati dal fallback.
+    """
     normalized_prompt = prompt.lower()
 
     if "vendit" in normalized_prompt and "venditor" in normalized_prompt:
@@ -102,6 +141,7 @@ def interpret_prompt_safely(prompt: str):
 
 
 def validate_interpretation(interpretation: dict):
+    """Valida consistenza minima dell'interpretazione prima dell'esecuzione query."""
     for field in interpretation["fields"]:
         if field not in ALLOWED_FIELDS:
             raise HTTPException(
@@ -123,6 +163,14 @@ def validate_interpretation(interpretation: dict):
 
 
 def normalize_ai_interpretation(ai_result: dict):
+    """Normalizza un output AI in un set campi/chart compatibile con il frontend.
+
+    Args:
+        ai_result: Output grezzo del modello AI.
+
+    Returns:
+        Dizionario con titolo, descrizione, campi autorizzati e configurazione chart.
+    """
     aliases = []
 
     for field in ai_result.get("fields", []):
@@ -407,11 +455,13 @@ def normalize_ai_interpretation(ai_result: dict):
 
 @app.get("/health")
 def health():
+    """Health check minimale del servizio API."""
     return {"status": "ok"}
 
 
 @app.post("/prompts")
 def create_prompt(payload: PromptCreate, db: Session = Depends(get_db)):
+    """Persistenza di un prompt utente nello storico locale."""
     item = PromptRequest(prompt=payload.prompt)
     db.add(item)
     db.commit()
@@ -426,6 +476,7 @@ def create_prompt(payload: PromptCreate, db: Session = Depends(get_db)):
 
 @app.get("/prompts")
 def list_prompts(db: Session = Depends(get_db)):
+    """Restituisce lo storico prompt ordinato dal piu recente al meno recente."""
     items = db.query(PromptRequest).order_by(PromptRequest.id.desc()).all()
 
     return [
@@ -496,15 +547,34 @@ def normalize_ai_interpretation(ai_result: dict):
 
 @app.post("/ai/query")
 def ai_query(payload: AiQueryRequest, db: Session = Depends(get_db)):
-    try:
-        plan = interpret_with_gemini(payload.prompt)
-        print("AI PLAN:", plan)
-    except Exception as e:
-        print("AI ERROR:", str(e))
-        raise HTTPException(
-            status_code=502,
-            detail="Errore durante l'interpretazione AI della richiesta."
-        )
+    """Endpoint principale: interpreta il prompt e restituisce dati per tabella/grafico.
+
+    Flusso operativo:
+    1. Lookup cache in memoria per prompt normalizzato.
+    2. Interpretazione AI (o errore 502 se servizio non disponibile).
+    3. Costruzione query SQL sicura tramite `build_safe_query`.
+    4. Esecuzione query, post-processing campi chart e serializzazione risposta.
+    """
+    prompt_key = payload.prompt.strip().lower()
+
+    if prompt_key in AI_PLAN_CACHE:
+        plan = AI_PLAN_CACHE[prompt_key]
+        print("AI PLAN FROM CACHE:", plan)
+    else:
+        try:
+            plan = interpret_with_gemini(payload.prompt)
+            AI_PLAN_CACHE[prompt_key] = plan
+            print("AI PLAN:", plan)
+        except Exception as e:
+            print("AI ERROR:", str(e))
+
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    "Il servizio AI non è momentaneamente disponibile "
+                    "o ha raggiunto il limite di richieste. Riprova tra poco."
+                )
+            )
 
     query, columns, params, meta = build_safe_query(plan)
 

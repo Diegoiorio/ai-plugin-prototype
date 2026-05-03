@@ -1,3 +1,25 @@
+"""Costruzione di query SQL sicure a partire da un piano strutturato.
+
+Responsabilita:
+- Validare tabelle/campi/operatori/trasformazioni contro `SAFE_DB_SCHEMA`.
+- Tradurre un piano JSON (prodotto dal layer AI) in SQLAlchemy `text` parametrizzato.
+- Restituire metadati colonne e configurazione chart coerenti con la query.
+
+Ruolo nel flusso applicativo:
+- `main.py` invoca `build_safe_query` prima dell'esecuzione su database.
+- Questo modulo rappresenta il confine tra output AI e SQL realmente eseguibile.
+
+Dipendenze principali:
+- `fastapi.HTTPException` per errori di validazione dominio.
+- `sqlalchemy.text` per query raw parametrizzate.
+- `ai_schema.SAFE_DB_SCHEMA` come whitelist centrale.
+
+Cosa NON fa questo modulo:
+- Non chiama modelli AI.
+- Non espone endpoint API.
+- Non applica logiche di business fuori dal piano query.
+"""
+
 from typing import Any
 from fastapi import HTTPException
 from sqlalchemy import text
@@ -42,6 +64,18 @@ ALLOWED_DIRECTIONS = {
 
 
 def get_field_meta(table: str, field: str) -> dict[str, Any]:
+    """Recupera i metadati di un campo consentito dallo schema safe.
+
+    Args:
+        table: Nome tabella logica.
+        field: Nome colonna nella tabella.
+
+    Returns:
+        Dizionario metadati del campo (`type`, `description`, ...).
+
+    Raises:
+        HTTPException: Se tabella o campo non sono presenti nella whitelist.
+    """
     try:
         return SAFE_DB_SCHEMA["tables"][table]["fields"][field]
     except KeyError:
@@ -52,6 +86,7 @@ def get_field_meta(table: str, field: str) -> dict[str, Any]:
 
 
 def validate_table(table: str):
+    """Verifica che la tabella richiesta sia presente nello schema consentito."""
     if table not in SAFE_DB_SCHEMA["tables"]:
         raise HTTPException(
             status_code=400,
@@ -60,6 +95,14 @@ def validate_table(table: str):
 
 
 def validate_relation(base_table: str, join_table: str):
+    """Convalida che la relazione tra tabella base e join sia permessa.
+
+    Returns:
+        La relazione trovata nello schema safe.
+
+    Raises:
+        HTTPException: Se non esiste una relazione ammessa tra le due tabelle.
+    """
     for relation in SAFE_DB_SCHEMA["relations"]:
         valid_forward = (
             relation["from_table"] == base_table
@@ -80,6 +123,16 @@ def validate_relation(base_table: str, join_table: str):
 
 
 def sql_field(table: str, field: str, transform: str | None = None) -> str:
+    """Converte una coppia tabella/campo in espressione SQL sicura.
+
+    Args:
+        table: Tabella consentita.
+        field: Campo consentito.
+        transform: Trasformazione opzionale (`month`, `year`).
+
+    Returns:
+        Frammento SQL pronto per SELECT/GROUP BY.
+    """
     validate_table(table)
     get_field_meta(table, field)
 
@@ -113,6 +166,14 @@ def sql_field(table: str, field: str, transform: str | None = None) -> str:
 
 
 def build_select_item(item: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    """Costruisce una select expression e i metadati della colonna risultante.
+
+    Args:
+        item: Definizione di select del piano AI.
+
+    Returns:
+        Tupla: (frammento SQL aliasato, metadati colonna per la risposta API).
+    """
     table = item.get("table")
     field = item.get("field")
     alias = item.get("alias")
@@ -165,6 +226,15 @@ def build_select_item(item: dict[str, Any]) -> tuple[str, dict[str, Any]]:
 
 
 def build_filter_item(item: dict[str, Any], index: int) -> tuple[str, dict[str, Any]]:
+    """Costruisce una clausola WHERE parametrizzata e i relativi parametri.
+
+    Args:
+        item: Filtro del piano query.
+        index: Indice usato per generare un nome parametro stabile.
+
+    Returns:
+        Tupla: (frammento SQL filtro, dizionario parametri bind).
+    """
     table = item.get("table")
     field = item.get("field")
     operator = item.get("operator")
@@ -200,6 +270,15 @@ def build_filter_item(item: dict[str, Any], index: int) -> tuple[str, dict[str, 
 
 
 def build_join_sql(base_table: str, joins: list[str]) -> str:
+    """Genera le clausole LEFT JOIN consentite dallo schema safe.
+
+    Args:
+        base_table: Tabella principale del FROM.
+        joins: Elenco tabelle da collegare.
+
+    Returns:
+        Stringa SQL contenente zero o piu join.
+    """
     join_parts = []
 
     for join_table in joins:
@@ -224,6 +303,21 @@ def build_join_sql(base_table: str, joins: list[str]) -> str:
 
 
 def build_safe_query(plan: dict[str, Any]) -> tuple[Any, list[dict[str, Any]], dict[str, Any]]:
+    """Traduce un piano AI in query SQL sicura e metadati risposta.
+
+    Args:
+        plan: Piano strutturato con base_table/select/filters/group/order/chart.
+
+    Returns:
+        Tupla con:
+        - query SQLAlchemy `text` parametrizzata;
+        - lista metadati colonne della tabella risposta;
+        - parametri bind da passare a `db.execute`;
+        - metadati risposta (`title`, `description`, `chart`).
+
+    Raises:
+        HTTPException: Se il piano contiene elementi non ammessi o incoerenti.
+    """
     base_table = plan.get("base_table")
     validate_table(base_table)
 
