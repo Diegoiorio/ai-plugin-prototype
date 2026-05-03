@@ -38,6 +38,53 @@ yarn dev
 bun run dev
 ```
 
+## Backend API
+
+The frontend relies on the FastAPI backend exposed on `http://localhost:8000`.
+
+Start the PostgreSQL database from the project root:
+
+```bash
+docker compose up -d postgres
+```
+
+Then start the backend from the `backend` folder.
+
+On Windows (PowerShell):
+
+```bash
+# create the virtual environment if needed
+python -m venv .venv
+
+# activate it on Windows (PowerShell)
+.venv\Scripts\Activate.ps1
+
+# install dependencies
+pip install -r requirements.txt
+
+# run the API
+uvicorn main:app --reload --port 8000
+```
+
+On Linux / WSL / macOS:
+
+```bash
+# create the virtual environment if needed
+python3 -m venv .venv
+
+# activate it
+source .venv/bin/activate
+
+# run the API
+uvicorn main:app --reload --port 8000
+
+# install dependencies
+pip install -r requirements.txt
+```
+
+The backend reads `DATABASE_URL` from `backend/.env`. With the current setup, the health check is available at `http://localhost:8000/health`.
+For the swagger: `http://localhost:8000/docs#/`
+
 ## Production
 
 Build the application for production:
